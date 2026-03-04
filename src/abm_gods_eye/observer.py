@@ -6,14 +6,13 @@ natural-language questions about the simulation, step it forward, and
 identify emergent patterns.
 """
 
-from typing import Any
-
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage
 from langchain_core.language_models import BaseChatModel
 from langgraph.prebuilt import create_react_agent
 
 from abm_gods_eye.adapter import SimulationAdapter
+from abm_gods_eye.callbacks import ThoughtLogger
 from abm_gods_eye.tools import make_tools
 
 SYSTEM_PROMPT = """You are an all-seeing observer of a running agent-based simulation — a "god's eye" view.
@@ -42,7 +41,7 @@ class GodsEye:
         from my_sim import MyMesaAdapter  # your SimulationAdapter implementation
 
         adapter = MyMesaAdapter(model)
-        eye = GodsEye(adapter)
+        eye = GodsEye(adapter, verbose=True)
 
         response = eye.ask("What patterns are emerging among the agents?")
         print(response)
@@ -54,12 +53,17 @@ class GodsEye:
     llm:
         A LangChain chat model. Defaults to Claude claude-sonnet-4-6 via langchain-anthropic.
         Pass any BaseChatModel to swap backends (OpenAI, Ollama, etc.).
+    verbose:
+        When True, attaches a ThoughtLogger callback that emits INFO-level log messages
+        for each tool call and DEBUG-level messages for LLM steps. Configure the
+        "abm_gods_eye" logger to control output destination and format.
     """
 
     def __init__(
         self,
         adapter: SimulationAdapter,
         llm: BaseChatModel | None = None,
+        verbose: bool = False,
     ) -> None:
         if not isinstance(adapter, SimulationAdapter):
             raise TypeError(
@@ -74,6 +78,7 @@ class GodsEye:
             tools=self._tools,
             prompt=SYSTEM_PROMPT,
         )
+        self._callbacks = [ThoughtLogger()] if verbose else []
 
     def ask(self, question: str) -> str:
         """
@@ -92,9 +97,12 @@ class GodsEye:
         str
             The LLM's response.
         """
-        result = self._agent.invoke({"messages": [HumanMessage(content=question)]})
+        config = {"callbacks": self._callbacks} if self._callbacks else {}
+        result = self._agent.invoke(
+            {"messages": [HumanMessage(content=question)]},
+            config=config,
+        )
         messages = result.get("messages", [])
-        # Last message is the final AI response
         for msg in reversed(messages):
             if hasattr(msg, "content") and isinstance(msg.content, str) and msg.content:
                 return msg.content
@@ -105,8 +113,14 @@ class GodsEye:
         Stream the agent's response token by token.
 
         Yields string chunks suitable for progressive display in a UI.
+        Thought-process logging (if verbose=True) is emitted as a side-effect
+        via the logging module, not interleaved in the yielded chunks.
         """
-        for chunk in self._agent.stream({"messages": [HumanMessage(content=question)]}):
+        config = {"callbacks": self._callbacks} if self._callbacks else {}
+        for chunk in self._agent.stream(
+            {"messages": [HumanMessage(content=question)]},
+            config=config,
+        ):
             if "agent" in chunk:
                 for msg in chunk["agent"].get("messages", []):
                     if hasattr(msg, "content") and isinstance(msg.content, str):

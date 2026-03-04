@@ -108,13 +108,17 @@ class WealthModelAdapter:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    import logging
+    # Show INFO logs so tool calls are visible; use DEBUG to also see LLM steps.
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
+
     model = WealthModel(n_agents=100)
     adapter = WealthModelAdapter(model)
 
     # Run a few steps before asking questions
     adapter.step(10)
 
-    eye = GodsEye(adapter)
+    eye = GodsEye(adapter, verbose=True)
 
     questions = [
         "What does the current wealth distribution look like? Is inequality high or low?",

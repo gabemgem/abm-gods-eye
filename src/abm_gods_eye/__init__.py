@@ -6,6 +6,7 @@ that implements the SimulationAdapter protocol.
 """
 
 from abm_gods_eye.adapter import SimulationAdapter
+from abm_gods_eye.callbacks import ThoughtLogger
 from abm_gods_eye.observer import GodsEye
 
-__all__ = ["SimulationAdapter", "GodsEye"]
+__all__ = ["SimulationAdapter", "GodsEye", "ThoughtLogger"]
