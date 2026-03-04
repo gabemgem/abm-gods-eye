@@ -88,5 +88,7 @@ eye = GodsEye(adapter, llm=ChatOpenAI(model="gpt-4o"))
 git clone https://github.com/gabemgem/abm-gods-eye
 cd abm-gods-eye
 uv sync
-uv run python examples/mesa_adapter.py
+uv run --env-file=.env python examples/mesa_adapter.py
 ```
+
+You only need to include `--env-file` if your API keys are stored in the `.env` file instead of as environment variables.
