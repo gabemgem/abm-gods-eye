@@ -109,25 +109,29 @@ class WealthModelAdapter:
 
 if __name__ == "__main__":
     import logging
+    import sys
+
     # Show INFO logs so tool calls are visible; use DEBUG to also see LLM steps.
     logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 
     model = WealthModel(n_agents=100)
     adapter = WealthModelAdapter(model)
 
-    # Run a few steps before asking questions
+    # Run a few steps so there's something to observe.
     adapter.step(10)
 
     eye = GodsEye(adapter, verbose=True)
 
-    questions = [
-        "What does the current wealth distribution look like? Is inequality high or low?",
-        "Step the simulation forward 20 more steps and tell me what changed.",
-        "Which agents have the most wealth right now?",
-    ]
-
-    for q in questions:
-        print(f"\n{'='*60}")
-        print(f"Q: {q}")
-        print(f"{'='*60}")
-        print(eye.ask(q))
+    # Pass --batch to run the pre-scripted questions instead of the interactive REPL.
+    if "--batch" in sys.argv:
+        questions = [
+            "What does the current wealth distribution look like? Is inequality high or low?",
+            "Step the simulation forward 20 more steps and tell me what changed.",
+            "Which agents have the most wealth right now?",
+        ]
+        for q in questions:
+            print(f"\n{'='*60}\nQ: {q}\n{'='*60}")
+            print(eye.ask(q))
+    else:
+        # Interactive chat — the observer remembers previous turns.
+        eye.chat()

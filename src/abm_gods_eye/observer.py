@@ -7,7 +7,7 @@ identify emergent patterns.
 """
 
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.language_models import BaseChatModel
 from langgraph.prebuilt import create_react_agent
 
@@ -30,6 +30,24 @@ When answering questions:
 The user may be a researcher, student, or curious observer. Calibrate your language accordingly.
 """
 
+_CHAT_BANNER = """
+╔══════════════════════════════════════════════╗
+║           abm-gods-eye  ·  Observer          ║
+╚══════════════════════════════════════════════╝
+Ask anything about the simulation.
+Type  exit  or press Ctrl+C to quit.
+"""
+
+_DIVIDER = "─" * 48
+
+
+def _last_ai_text(messages: list[BaseMessage]) -> str:
+    """Return the text content of the last AIMessage in a message list."""
+    for msg in reversed(messages):
+        if isinstance(msg, AIMessage) and isinstance(msg.content, str) and msg.content:
+            return msg.content
+    return ""
+
 
 class GodsEye:
     """
@@ -43,8 +61,11 @@ class GodsEye:
         adapter = MyMesaAdapter(model)
         eye = GodsEye(adapter, verbose=True)
 
-        response = eye.ask("What patterns are emerging among the agents?")
-        print(response)
+        # Single question
+        print(eye.ask("What patterns are emerging?"))
+
+        # Interactive session (blocks until the user exits)
+        eye.chat()
 
     Parameters
     ----------
@@ -82,35 +103,26 @@ class GodsEye:
 
     def ask(self, question: str) -> str:
         """
-        Ask a natural-language question about the simulation.
+        Ask a stateless question about the simulation.
 
-        The agent will use its tools to inspect the simulation and return
-        a grounded, human-readable answer.
+        Each call is independent — no conversation history is retained.
+        For a multi-turn session with memory, use chat() instead.
 
         Parameters
         ----------
         question:
             Any question about the simulation state, agents, metrics, or trends.
-
-        Returns
-        -------
-        str
-            The LLM's response.
         """
         config = {"callbacks": self._callbacks} if self._callbacks else {}
         result = self._agent.invoke(
             {"messages": [HumanMessage(content=question)]},
             config=config,
         )
-        messages = result.get("messages", [])
-        for msg in reversed(messages):
-            if hasattr(msg, "content") and isinstance(msg.content, str) and msg.content:
-                return msg.content
-        return ""
+        return _last_ai_text(result.get("messages", []))
 
     def stream(self, question: str):
         """
-        Stream the agent's response token by token.
+        Stream the agent's response token by token (stateless, like ask()).
 
         Yields string chunks suitable for progressive display in a UI.
         Thought-process logging (if verbose=True) is emitted as a side-effect
@@ -123,5 +135,46 @@ class GodsEye:
         ):
             if "agent" in chunk:
                 for msg in chunk["agent"].get("messages", []):
-                    if hasattr(msg, "content") and isinstance(msg.content, str):
+                    if isinstance(msg, AIMessage) and isinstance(msg.content, str):
                         yield msg.content
+
+    def chat(self) -> None:
+        """
+        Start an interactive terminal chat session about the simulation.
+
+        Conversation history is preserved across turns so the observer
+        remembers what has already been discussed. The session blocks until
+        the user types 'exit' or presses Ctrl+C / Ctrl+D.
+
+        Example::
+
+            eye = GodsEye(adapter, verbose=True)
+            eye.chat()
+        """
+        print(_CHAT_BANNER)
+
+        # Accumulated message history — passed into every agent call so the
+        # LLM has full context of the conversation so far.
+        history: list[BaseMessage] = []
+        config = {"callbacks": self._callbacks} if self._callbacks else {}
+
+        while True:
+            try:
+                user_input = input("You: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\nExiting. Goodbye.")
+                break
+
+            if not user_input:
+                continue
+            if user_input.lower() in {"exit", "quit", "q"}:
+                print("Exiting. Goodbye.")
+                break
+
+            history.append(HumanMessage(content=user_input))
+
+            result = self._agent.invoke({"messages": history}, config=config)
+            history = result.get("messages", history)
+
+            response = _last_ai_text(history)
+            print(f"\nObserver: {response}\n{_DIVIDER}")
