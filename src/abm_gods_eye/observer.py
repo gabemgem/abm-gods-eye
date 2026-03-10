@@ -6,13 +6,13 @@ natural-language questions about the simulation, step it forward, and
 identify emergent patterns.
 """
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.language_models import BaseChatModel
 from langgraph.prebuilt import create_react_agent
 
 from abm_gods_eye.adapter import SimulationAdapter
 from abm_gods_eye.callbacks import ThoughtLogger
+from abm_gods_eye.llm import make_llm
 from abm_gods_eye.tools import make_tools
 
 SYSTEM_PROMPT = """You are an all-seeing observer of a running agent-based simulation — a "god's eye" view.
@@ -92,7 +92,7 @@ class GodsEye:
                 "See abm_gods_eye.adapter.SimulationAdapter for required methods."
             )
         self._adapter = adapter
-        self._llm = llm or ChatAnthropic(model="claude-sonnet-4-6")  # type: ignore[call-arg]
+        self._llm = llm or make_llm("anthropic")
         self._tools = make_tools(adapter)
         self._agent = create_react_agent(
             model=self._llm,

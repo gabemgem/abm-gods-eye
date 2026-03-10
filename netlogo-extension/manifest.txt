@@ -1,0 +1,5 @@
+Manifest-Version: 1.0
+Extension-Name: gods-eye
+Class-Manager: GodsEyeExtension
+NetLogo-Extension-API-Version: 6.0
+
